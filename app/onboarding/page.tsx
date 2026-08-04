@@ -128,8 +128,12 @@ function OnboardingForm() {
       return;
     }
 
-    router.replace(next);
-    router.refresh();
+    // A hard navigation, not router.replace. Getting here means proxy.ts
+    // already bounced the target back to /onboarding once, and that redirect
+    // sits in the client router cache - replace() simply replays it and the
+    // user stays on this page even though the profile saved. A full load
+    // re-runs the middleware, which now lets them through.
+    window.location.assign(next);
   };
 
   if (!ready) {
