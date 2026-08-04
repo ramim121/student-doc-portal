@@ -590,7 +590,7 @@ export default function UploadPage() {
             </div>
 
             {/* form fields */}
-            <div className="grid gap-5 rounded-3xl border border-border bg-card p-6 shadow-soft md:grid-cols-2">
+            <div className="grid gap-5 rounded-3xl border border-border bg-card p-4 shadow-soft sm:p-6 md:grid-cols-2">
               <Field label="Title" required full>
                 <input
                   required
