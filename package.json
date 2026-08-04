@@ -18,7 +18,8 @@
     "db:migrate": "node scripts/apply-migrations.mjs",
     "db:seed": "node scripts/seed-dev-data.mjs",
     "db:reset-users": "node scripts/seed-dev-data.mjs --reset-users",
-    "verify:r2": "node scripts/verify-r2.mjs"
+    "verify:r2": "node scripts/verify-r2.mjs",
+    "supabase:templates": "node scripts/apply-email-templates.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1101.0",
