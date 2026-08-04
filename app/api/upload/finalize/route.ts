@@ -52,7 +52,9 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       // Naming the offending fields is the difference between a user fixing
       // their form and giving up. Values are never echoed back.
-      const fields = [...new Set(parsed.error.issues.map((issue) => String(issue.path[0])))];
+      const fields = Array.from(
+        new Set(parsed.error.issues.map((issue) => String(issue.path[0]))),
+      );
       return apiError(
         400,
         'INVALID_FINALIZATION',
