@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import {
   FileText,
@@ -55,6 +57,30 @@ export function ResourceCard({
   index?: number;
 }) {
   const ft = FILE_TYPE_META[resource.fileType] ?? FILE_TYPE_META.pdf;
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // The whole card is a link, so the bookmark button must not navigate.
+  const handleBookmark = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      window.location.href = `/auth?next=${encodeURIComponent(`/resource/${resource.id}`)}`;
+      return;
+    }
+
+    const next = !saved;
+    setSaving(true);
+    setSaved(next);
+    const response = await fetch(`/api/bookmarks/${resource.id}`, {
+      method: next ? 'POST' : 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!response.ok) setSaved(!next);
+    setSaving(false);
+  };
 
   return (
     <motion.div
@@ -98,13 +124,13 @@ export function ResourceCard({
                 </span>
               )}
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
-                aria-label="Bookmark"
+                onClick={handleBookmark}
+                disabled={saving}
+                aria-pressed={saved}
+                aria-label={saved ? 'Remove from saved' : 'Save this resource'}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary disabled:opacity-50"
               >
-                <Bookmark className="h-4 w-4" />
+                <Bookmark className={cn('h-4 w-4', saved && 'fill-primary text-primary')} />
               </button>
             </div>
           </div>

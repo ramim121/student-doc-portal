@@ -9,6 +9,7 @@ import {
   Download,
   Eye,
   Bookmark,
+  Check,
   Share2,
   Flag,
   BadgeCheck,
@@ -50,6 +51,8 @@ export default function ResourceDetailClient() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [bookmarked, setBookmarked] = useState(false);
+  const [savingBookmark, setSavingBookmark] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
@@ -85,6 +88,72 @@ export default function ResourceDetailClient() {
 
     return () => controller.abort();
   }, [id]);
+
+  // Reflect what is actually stored, not what this tab last clicked.
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const response = await fetch(`/api/bookmarks/${id}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) return;
+      const body = await response.json();
+      setBookmarked(Boolean(body.bookmarked));
+    })();
+  }, [id]);
+
+  const toggleBookmark = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.push(`/auth?next=${encodeURIComponent(`/resource/${id}`)}`);
+      return;
+    }
+
+    const next = !bookmarked;
+    setSavingBookmark(true);
+    setBookmarked(next); // optimistic; reverted below if the write fails
+
+    const response = await fetch(`/api/bookmarks/${id}`, {
+      method: next ? 'POST' : 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (!response.ok) {
+      setBookmarked(!next);
+    } else if (resource) {
+      setResource({
+        ...resource,
+        bookmarks: Math.max(0, resource.bookmarks + (next ? 1 : -1)),
+      });
+    }
+    setSavingBookmark(false);
+  };
+
+  const shareResource = async () => {
+    const url = `${window.location.origin}/resource/${id}`;
+    const title = resource?.title ?? 'StudyDock resource';
+
+    // Native share on mobile, clipboard everywhere else. A cancelled share
+    // rejects with AbortError, which is not a failure worth reporting.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch {
+        return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      window.prompt('Copy this link', url);
+    }
+  };
 
   const handleDownload = async () => {
     if (!resource) return;
@@ -348,12 +417,21 @@ export default function ResourceDetailClient() {
                   variant="outline"
                   size="sm"
                   className="rounded-xl"
-                  onClick={() => setBookmarked(!bookmarked)}
+                  disabled={savingBookmark}
+                  aria-pressed={bookmarked}
+                  aria-label={bookmarked ? 'Remove from saved' : 'Save this resource'}
+                  onClick={() => void toggleBookmark()}
                 >
                   <Bookmark className={cn('h-4 w-4', bookmarked && 'fill-primary text-primary')} />
                 </Button>
-                <Button variant="outline" size="sm" className="rounded-xl">
-                  <Share2 className="h-4 w-4" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  aria-label="Share this resource"
+                  onClick={() => void shareResource()}
+                >
+                  {shareCopied ? <Check className="h-4 w-4 text-success" /> : <Share2 className="h-4 w-4" />}
                 </Button>
                 <Button variant="outline" size="sm" className="rounded-xl text-destructive hover:text-destructive">
                   <Flag className="h-4 w-4" />
