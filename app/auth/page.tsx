@@ -85,12 +85,22 @@ function AuthForm() {
       router.refresh();
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : '';
+      const status = (caught as { status?: number } | null)?.status;
+      // supabase-js surfaces some upstream failures with an unhelpful body:
+      // a 500 from the mailer arrives as AuthRetryableFetchError with the
+      // literal message "{}". Never put that in front of a user.
+      const isHumanReadable = /[a-z]/i.test(message) && !/^[[{]/.test(message.trim());
+
       if (/invalid login credentials/i.test(message)) {
         setError('The email or password is incorrect.');
       } else if (/already registered|user already/i.test(message)) {
         setError('Unable to create the account. Try signing in or resetting your password.');
+      } else if (/confirmation email|sending email|error sending/i.test(message) || status === 500) {
+        setError(
+          'We could not send the verification email to that address. Please try again shortly, or use a different address.',
+        );
       } else {
-        setError(message || 'Something went wrong. Please try again.');
+        setError(isHumanReadable ? message : 'Something went wrong. Please try again.');
       }
     } finally {
       setLoading(false);
