@@ -3,6 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const protectedPrefixes = ['/dashboard', '/upload', '/study-notes', '/account'];
 
+// Excluded from the onboarding redirect below, or it would redirect to itself.
+const onboardingPath = '/onboarding';
+
 function copyAuthState(source: NextResponse, target: NextResponse) {
   source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
   for (const header of ['cache-control', 'expires', 'pragma']) {
@@ -59,6 +62,28 @@ export async function proxy(request: NextRequest) {
       `${request.nextUrl.pathname}${request.nextUrl.search}`,
     );
     return copyAuthState(response, NextResponse.redirect(loginUrl));
+  }
+
+  // Signed in, but we still do not know where they study. Ask once, then let
+  // them through. Checked here rather than per page so a newly added protected
+  // route cannot forget it.
+  if (isProtected && user && request.nextUrl.pathname !== onboardingPath) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarded_at')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile && !profile.onboarded_at) {
+      const onboardingUrl = request.nextUrl.clone();
+      onboardingUrl.pathname = onboardingPath;
+      onboardingUrl.search = '';
+      onboardingUrl.searchParams.set(
+        'next',
+        `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      );
+      return copyAuthState(response, NextResponse.redirect(onboardingUrl));
+    }
   }
 
   return response;

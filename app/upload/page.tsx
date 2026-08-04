@@ -14,7 +14,9 @@ import {
   Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SearchableSelect, type SearchableOption } from '@/components/searchable-select';
 import { supabase } from '@/lib/supabase';
+import { currentSemester, semesterOptions } from '@/lib/semesters';
 import { cn } from '@/lib/utils';
 
 const fileTypesAccepted = ['PDF', 'PPT', 'DOCX', 'ZIP', 'Images', 'Excel', 'Video'];
