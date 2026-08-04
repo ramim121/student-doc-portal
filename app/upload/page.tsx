@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,7 +16,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { SearchableSelect, type SearchableOption } from '@/components/searchable-select';
 import { supabase } from '@/lib/supabase';
+import { buildAutoTags } from '@/lib/auto-tags';
 import { currentSemester, semesterOptions } from '@/lib/semesters';
+import { resourceFileType } from '@/lib/upload-policy';
 import { cn } from '@/lib/utils';
 
 const fileTypesAccepted = ['PDF', 'PPT', 'DOCX', 'ZIP', 'Images', 'Excel', 'Video'];
@@ -101,13 +103,21 @@ export default function UploadPage() {
     department: '',
     courseId: '',
     courseCode: '',
-    semester: '',
+    semester: currentSemester().value,
     subject: '',
     category: '',
     description: '',
     tags: '',
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Institutions in the uploader's own country, for the quick-pick chips.
+  const [profileCountry, setProfileCountry] = useState('');
+  const [quickPickUniversities, setQuickPickUniversities] = useState<SearchableOption[]>([]);
+  // Stop overwriting the generated description once it has been edited.
+  const [descriptionTouched, setDescriptionTouched] = useState(false);
+
+  const semesterChoices = useMemo(() => semesterOptions(), []);
 
   // Auth gate & load initial DB lists
   useEffect(() => {
@@ -139,6 +149,33 @@ export default function UploadPage() {
       const { data: categoryData, error: categoryError } = await supabase.from('categories').select('id, name').order('name').limit(250);
       if (categoryError) setError('Upload categories could not be loaded. Retry before submitting.');
       else if (categoryData) setCategoriesList(categoryData);
+
+      // Default to where this person studies. Onboarding captured it, so the
+      // common case is a form that is already correct.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('country, university_id')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (profile?.university_id) {
+        setForm((previous) => ({ ...previous, universityId: profile.university_id }));
+      }
+      if (profile?.country) {
+        setProfileCountry(profile.country);
+        const { data: nearby } = await supabase.rpc('list_institutions', {
+          p_country: profile.country,
+          p_query: '',
+          p_limit: 4,
+        });
+        setQuickPickUniversities(
+          ((nearby ?? []) as Array<{ id: string; name: string; short: string }>).map((row) => ({
+            id: row.id,
+            label: row.short || row.name,
+            sublabel: undefined,
+          })),
+        );
+      }
     })();
   }, [router]);
 
@@ -179,6 +216,45 @@ export default function UploadPage() {
 
   const update = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const selectedUniversity = universitiesList.find((u) => u.id === form.universityId);
+  const selectedCourse = coursesList.find((c) => c.id === form.courseId);
+  const selectedCategory = categoriesList.find((c) => c.id === form.category);
+
+  // Same derivation the server performs on finalize, shown so the uploader can
+  // see what their resource will be findable by.
+  const autoTagPreview = useMemo(
+    () =>
+      buildAutoTags({
+        universityShort: selectedUniversity?.short,
+        universityName: selectedUniversity?.name,
+        courseCode: selectedCourse?.code ?? form.courseCode,
+        courseTitle: selectedCourse?.title,
+        categoryName: selectedCategory?.name,
+        department: form.department,
+        fileType: file ? resourceFileType(file.name) : undefined,
+      }),
+    [selectedUniversity, selectedCourse, selectedCategory, form.courseCode, form.department, file],
+  );
+
+  // A sentence built from what they already chose beats an empty box, which in
+  // practice got filled with "Autogen" and "asdf".
+  useEffect(() => {
+    if (descriptionTouched) return;
+    if (!selectedUniversity || !selectedCategory) return;
+
+    const course = selectedCourse ? `${selectedCourse.code} ${selectedCourse.title}` : null;
+    const sentence = [
+      selectedCategory.name,
+      course ? `for ${course}` : null,
+      `at ${selectedUniversity.name}`,
+      form.semester ? `(${form.semester})` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    setForm((previous) => ({ ...previous, description: `${sentence}.` }));
+  }, [selectedUniversity, selectedCourse, selectedCategory, form.semester, descriptionTouched]);
 
   // Add custom university
   const handleAddCustomUniversity = async () => {
@@ -325,10 +401,6 @@ export default function UploadPage() {
       setUploadProgress(70);
       setUploadStage('Verifying file and finalizing metadata…');
 
-      const userTags = form.tags
-        .split(',')
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
       const finalizeRes = await fetch('/api/upload/finalize', {
         method: 'POST',
         headers: {
@@ -343,13 +415,13 @@ export default function UploadPage() {
           title: form.title,
           description: form.description,
           universityId: form.universityId,
-          courseId: form.courseId,
+          // A course is optional now; send null rather than an empty string.
+          courseId: form.courseId || null,
           categoryId: form.category || null,
           department: form.department,
           courseCode: form.courseCode,
           semester: form.semester,
-          subject: form.subject,
-          tags: userTags,
+          // subject is gone, and tags are derived server-side in finalize.
         }),
       });
       if (!finalizeRes.ok) {
@@ -376,7 +448,21 @@ export default function UploadPage() {
     setUploadStage('Preparing upload…');
     setSubmittedResourceId('');
     setError('');
-    setForm({ title: '', universityId: '', department: '', courseId: '', courseCode: '', semester: '', subject: '', category: '', description: '', tags: '' });
+    // Keep the institution: someone uploading twice is almost always uploading
+    // for the same place. Semester returns to the current term.
+    setForm((previous) => ({
+      title: '',
+      universityId: previous.universityId,
+      department: '',
+      courseId: '',
+      courseCode: '',
+      semester: currentSemester().value,
+      subject: '',
+      category: '',
+      description: '',
+      tags: '',
+    }));
+    setDescriptionTouched(false);
   };
 
   if (!authChecked) {
@@ -515,171 +601,155 @@ export default function UploadPage() {
                 />
               </Field>
 
-              {/* University Select & Add Custom */}
-              <Field label="University" required>
-                <input
-                  type="search"
-                  value={universitySearch}
-                  onChange={(event) => {
-                    setUniversitySearch(event.target.value);
-                    update('universityId', '');
+              {/* Institution. One control that searches and selects, with the
+                  user's own country surfaced as chips and their own school
+                  preselected from their profile. */}
+              <Field label="Institution" required full>
+                <SearchableSelect
+                  options={universitiesList.map((u) => ({
+                    id: u.id,
+                    label: u.name,
+                    sublabel: u.short,
+                    hint: u.status === 'custom_pending' ? 'pending review' : undefined,
+                  }))}
+                  value={form.universityId}
+                  onChange={(id) => {
+                    update('universityId', id);
                     update('courseId', '');
                     update('courseCode', '');
                     setCourseSearch('');
                   }}
-                  aria-label="Search universities"
-                  placeholder="Search university name or abbreviation"
-                  className="form-input mb-2"
-                />
-                <div className="flex gap-2">
-                  <select
-                    required
-                    value={form.universityId}
-                    onChange={(e) => {
-                      update('universityId', e.target.value);
-                      update('courseId', '');
-                      update('courseCode', '');
-                      setCourseSearch('');
-                    }}
-                    className="filter-select flex-1"
-                  >
-                    <option value="">Select university</option>
-                    {universitiesList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} {u.status === 'custom_pending' ? '(Pending Review)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    title="Add custom university if not found"
-                    onClick={() => setShowAddUniDialog(true)}
-                    className="rounded-xl border-border"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Field>
-
-              {/* Course Select & Add Custom */}
-              <Field label="Course & Short Code" required>
-                <input
-                  type="search"
-                  value={courseSearch}
-                  onChange={(event) => {
-                    setCourseSearch(event.target.value);
-                    update('courseId', '');
-                    update('courseCode', '');
+                  onSearch={setUniversitySearch}
+                  quickPicks={quickPickUniversities}
+                  quickPicksLabel="Quick picks for you"
+                  placeholder="Search your university or school"
+                  emptyMessage="No institution found. Try a different spelling."
+                  onCreate={(name) => {
+                    setNewUniName(name);
+                    setShowAddUniDialog(true);
                   }}
-                  disabled={!form.universityId}
-                  aria-label="Search courses"
-                  placeholder={form.universityId ? 'Search course code or title' : 'Select a university first'}
-                  className="form-input mb-2 disabled:opacity-50"
+                  createLabel="Add"
                 />
-                <div className="flex gap-2">
-                  <select
-                    required
-                    value={form.courseId}
-                    disabled={!form.universityId}
-                    onChange={(e) => {
-                      const selectedCrs = coursesList.find((c) => c.id === e.target.value);
-                      update('courseId', e.target.value);
-                      if (selectedCrs) update('courseCode', selectedCrs.code);
-                    }}
-                    className="filter-select flex-1 disabled:opacity-50"
-                  >
-                    <option value="">
-                      {form.universityId ? 'Select course / short code' : 'Select university first'}
-                    </option>
-                    {coursesList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.code} — {c.title}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={!form.universityId}
-                    title="Add custom course code if not found"
-                    onClick={() => setShowAddCourseDialog(true)}
-                    className="rounded-xl border-border disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+              </Field>
+
+              {/* Category, mandatory and immediately after the institution. */}
+              <Field label="Category" required full>
+                <div className="flex flex-wrap gap-2">
+                  {categoriesList.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => update('category', form.category === c.id ? '' : c.id)}
+                      aria-pressed={form.category === c.id}
+                      className={cn(
+                        'rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
+                        form.category === c.id
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-card hover:border-primary/40 hover:text-primary',
+                      )}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
                 </div>
               </Field>
 
-              <Field label="Department" required>
+              <Field label="Course" full>
+                <SearchableSelect
+                  options={coursesList.map((c) => ({
+                    id: c.id,
+                    label: c.code,
+                    sublabel: c.title,
+                  }))}
+                  value={form.courseId}
+                  onChange={(id) => {
+                    update('courseId', id);
+                    const course = coursesList.find((c) => c.id === id);
+                    update('courseCode', course?.code ?? '');
+                  }}
+                  onSearch={setCourseSearch}
+                  disabled={!form.universityId}
+                  placeholder={
+                    form.universityId ? 'Optional - search course code or title' : 'Pick an institution first'
+                  }
+                  emptyMessage="No course found. You can leave this empty."
+                  onCreate={
+                    form.universityId
+                      ? (code) => {
+                          setNewCourseCode(code);
+                          setShowAddCourseDialog(true);
+                        }
+                      : undefined
+                  }
+                  createLabel="Add course"
+                />
+              </Field>
+
+              <Field label="Department">
                 <input
-                  required
                   value={form.department}
                   onChange={(e) => update('department', e.target.value)}
-                  placeholder="e.g. Finance & Accounting"
+                  placeholder="Optional, e.g. Finance & Accounting"
                   className="form-input"
                 />
               </Field>
 
-              <Field label="Semester" required>
-                <input
-                  required
-                  minLength={2}
+              {/* Fixed options rather than free text: "Fall 2024" used to
+                  arrive as Fall24, fall 2024 and Autumn 2024. */}
+              <Field label="Semester">
+                <select
                   value={form.semester}
                   onChange={(e) => update('semester', e.target.value)}
-                  placeholder="e.g. Fall 2024"
-                  className="form-input"
-                />
-              </Field>
-
-              {/* Required by finalizeUploadSchema and indexed for search. The
-                  form submitted form.subject while rendering no input for it,
-                  so every upload failed validation with an empty subject. */}
-              <Field label="Subject" required>
-                <input
-                  required
-                  minLength={2}
-                  value={form.subject}
-                  onChange={(e) => update('subject', e.target.value)}
-                  placeholder="e.g. Corporate Finance"
-                  className="form-input"
-                />
-              </Field>
-
-              <Field label="Category" full>
-                <select value={form.category} onChange={(e) => update('category', e.target.value)} className="filter-select">
-                  <option value="">Select category</option>
-                  {categoriesList.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  className="filter-select"
+                >
+                  <option value="">Not specific to a semester</option>
+                  {semesterChoices.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value}
+                    </option>
                   ))}
                 </select>
               </Field>
 
-              <Field label="Description" required full>
+              <Field label="Description" full>
                 <textarea
-                  required
-                  minLength={10}
                   value={form.description}
-                  onChange={(e) => update('description', e.target.value)}
-                  placeholder="Describe what this resource contains..."
-                  className="form-input h-28 resize-none"
+                  onChange={(e) => {
+                    setDescriptionTouched(true);
+                    update('description', e.target.value);
+                  }}
+                  placeholder="Optional - we will write one from your selections"
+                  className="form-input h-24 resize-none"
                 />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {form.description.trim().length < 10
-                    ? `At least 10 characters (${form.description.trim().length}/10).`
-                    : `${form.description.trim().length} characters.`}
-                </p>
+                {!descriptionTouched && form.description && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Written from your selections. Edit it or leave it as is.
+                  </p>
+                )}
               </Field>
 
+              {/* Tags are derived server-side from the catalog; a free-text box
+                  produced fin435 / FIN 435 / Fin-435 for the same course. */}
               <Field label="Tags" full>
-                <input
-                  value={form.tags}
-                  onChange={(e) => update('tags', e.target.value)}
-                  placeholder="comma-separated, e.g. corporate-finance, fin-435, valuation"
-                  className="form-input"
-                />
+                {autoTagPreview.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {autoTagPreview.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Tags appear here once you pick an institution and a category.
+                  </p>
+                )}
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Generated automatically so the same course is always tagged the same way.
+                </p>
               </Field>
             </div>
 
