@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server';
 import { authenticateRequest, type AuthenticatedRequest } from '@/lib/api-auth';
 import { consumeApiRateLimit } from '@/lib/api-rate-limit';
 import { apiError, apiSuccess, getRequestId } from '@/lib/api-response';
+import { buildAutoTags } from '@/lib/auto-tags';
 import { deleteR2Object, headR2Object } from '@/lib/cloudflare-r2';
 import { isGeminiConfigured } from '@/lib/gemini';
 import { hasVerifiedEmail, isTrustedMutationOrigin, uploadRequiresVerifiedEmail } from '@/lib/request-security';
@@ -91,6 +92,29 @@ export async function POST(request: NextRequest) {
       return apiError(409, 'OBJECT_METADATA_MISMATCH', 'The uploaded object does not match the expected file metadata.', requestId);
     }
 
+    // Tags are derived from the catalog, never taken from the request, so they
+    // stay consistent across uploaders and cannot be stuffed with unrelated
+    // search terms. Names are read back rather than trusted from the client.
+    const [universityRow, courseRow, categoryRow] = await Promise.all([
+      auth.supabase.from('universities').select('name, short').eq('id', input.universityId).maybeSingle(),
+      input.courseId
+        ? auth.supabase.from('courses').select('code, title').eq('id', input.courseId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      input.categoryId
+        ? auth.supabase.from('categories').select('name').eq('id', input.categoryId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const autoTags = buildAutoTags({
+      universityShort: universityRow.data?.short,
+      universityName: universityRow.data?.name,
+      courseCode: courseRow.data?.code ?? input.courseCode,
+      courseTitle: courseRow.data?.title,
+      categoryName: categoryRow.data?.name,
+      department: input.department,
+      fileType: resourceFileType(input.fileName),
+    });
+
     const { data, error } = await auth.supabase.rpc('finalize_resource_upload', {
       p_storage_key: input.storageKey,
       p_original_file_name: input.fileName,
@@ -107,7 +131,7 @@ export async function POST(request: NextRequest) {
       p_semester: input.semester,
       p_subject: input.subject,
       p_file_type: resourceFileType(input.fileName),
-      p_tags: Array.from(new Set(input.tags.map((tag) => tag.toLowerCase()))),
+      p_tags: autoTags,
       p_ai_requested: input.contentType === 'application/pdf' && isGeminiConfigured(),
     });
 
