@@ -68,7 +68,16 @@ export async function deleteR2Object(key: string) {
   await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
 }
 
-export async function getR2ObjectBytes(key: string, maximumBytes: number) {
+/**
+ * Returns a plain Uint8Array, never a Node Buffer.
+ *
+ * pdf.js clones the input through `new value.constructor(value)`. For a Buffer
+ * that is the deprecated `new Buffer(...)`, which allocates from Node's shared
+ * pool, so `byteOffset` becomes non-zero. pdf.js then calls `makeSubStream`
+ * using `bytes.buffer` and resolves every object offset against the whole pool,
+ * failing with "bad XRef entry". A plain Uint8Array clones to offset 0.
+ */
+export async function getR2ObjectBytes(key: string, maximumBytes: number): Promise<Uint8Array> {
   const metadata = await headR2Object(key);
   if (!metadata.contentLength || metadata.contentLength > maximumBytes) {
     throw new Error('R2_OBJECT_SIZE_UNSUPPORTED');
@@ -80,7 +89,11 @@ export async function getR2ObjectBytes(key: string, maximumBytes: number) {
 
   const bytes = await response.Body.transformToByteArray();
   if (bytes.byteLength > maximumBytes) throw new Error('R2_OBJECT_SIZE_UNSUPPORTED');
-  return Buffer.from(bytes);
+
+  // Copy into a dedicated ArrayBuffer at offset 0, as a plain Uint8Array.
+  const dedicated = new Uint8Array(bytes.byteLength);
+  dedicated.set(bytes);
+  return dedicated;
 }
 
 /**

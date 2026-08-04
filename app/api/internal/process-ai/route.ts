@@ -54,7 +54,10 @@ async function processNextJob(request: NextRequest) {
 
   try {
     const file = await getR2ObjectBytes(job.storage_key, aiSourceLimit());
-    const document = await pdf(file, { max: 200 });
+    // @types/pdf-parse declares Buffer, but a Buffer is exactly what breaks
+    // pdf.js's internal clone step. getR2ObjectBytes returns a Uint8Array
+    // deliberately; see the note on that function.
+    const document = await pdf(file as unknown as Buffer, { max: 200 });
     const documentText = document.text.trim();
     if (!documentText) throw new Error('PDF_TEXT_EMPTY');
 

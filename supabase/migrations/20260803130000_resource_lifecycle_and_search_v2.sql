@@ -315,16 +315,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_resources_storage_object
   ON public.resources(storage_provider, storage_key)
   WHERE storage_key IS NOT NULL;
 
+-- array_to_string(anyarray, text) is STABLE, not IMMUTABLE, so it cannot appear
+-- directly in an index expression. This wrapper pins the element type to text,
+-- where the conversion is genuinely deterministic, and is declared IMMUTABLE so
+-- the expression becomes indexable.
+CREATE OR REPLACE FUNCTION public.resource_search_document(
+  p_title text,
+  p_description text,
+  p_course_code text,
+  p_subject text,
+  p_tags text[],
+  p_ai_topics text[]
+)
+RETURNS tsvector
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path = ''
+AS $$
+  SELECT to_tsvector(
+    'simple'::regconfig,
+    coalesce(p_title, '') || ' ' ||
+    coalesce(p_description, '') || ' ' ||
+    coalesce(p_course_code, '') || ' ' ||
+    coalesce(p_subject, '') || ' ' ||
+    coalesce(array_to_string(p_tags, ' '), '') || ' ' ||
+    coalesce(array_to_string(p_ai_topics, ' '), '')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.resource_search_document(text, text, text, text, text[], text[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.resource_search_document(text, text, text, text, text[], text[]) TO anon, authenticated;
+
 CREATE INDEX IF NOT EXISTS idx_resources_search_document
   ON public.resources USING gin(
-    to_tsvector(
-      'simple'::regconfig,
-      coalesce(title, '') || ' ' ||
-      coalesce(description, '') || ' ' ||
-      coalesce(course_code, '') || ' ' ||
-      coalesce(subject, '') || ' ' ||
-      coalesce(array_to_string(tags, ' '), '') || ' ' ||
-      coalesce(array_to_string(ai_topics, ' '), '')
+    public.resource_search_document(
+      title, description, course_code, subject, tags, ai_topics
     )
   );
 
@@ -1802,10 +1828,12 @@ BEGIN
               ),
               plainto_tsquery('simple'::regconfig, normalized_query)
             ) * 30.0
-          + similarity(lower(coalesce(resource.title, '')), normalized_query) * 12.0
-          + similarity(lower(coalesce(course.code, '')), normalized_query) * 15.0
-          + similarity(lower(coalesce(course.title, '')), normalized_query) * 8.0
-          + similarity(lower(coalesce(university.name, '')), normalized_query) * 5.0
+          -- similarity() comes from pg_trgm and this function pins
+          -- search_path to '', so it must be schema-qualified.
+          + public.similarity(lower(coalesce(resource.title, '')), normalized_query) * 12.0
+          + public.similarity(lower(coalesce(course.code, '')), normalized_query) * 15.0
+          + public.similarity(lower(coalesce(course.title, '')), normalized_query) * 8.0
+          + public.similarity(lower(coalesce(university.name, '')), normalized_query) * 5.0
       END::double precision AS score
     FROM public.resources AS resource
     LEFT JOIN public.universities AS university ON university.id = resource.university_id
@@ -1829,8 +1857,8 @@ BEGIN
           SELECT 1 FROM unnest(resource.tags || coalesce(resource.ai_topics, '{}'::text[])) AS term
           WHERE lower(term) LIKE '%' || normalized_query || '%'
         )
-        OR similarity(lower(coalesce(resource.title, '')), normalized_query) >= 0.2
-        OR similarity(lower(coalesce(course.code, '')), normalized_query) >= 0.25
+        OR public.similarity(lower(coalesce(resource.title, '')), normalized_query) >= 0.2
+        OR public.similarity(lower(coalesce(course.code, '')), normalized_query) >= 0.25
       )
   ),
   counted AS (
@@ -2478,10 +2506,12 @@ ALTER TABLE public.account_erasure_jobs ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.account_erasure_jobs FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.account_erasure_jobs TO authenticated;
 
+DROP POLICY IF EXISTS "admin_read_account_erasure_jobs" ON public.account_erasure_jobs;
 CREATE POLICY "admin_read_account_erasure_jobs"
 ON public.account_erasure_jobs FOR SELECT TO authenticated
 USING ((SELECT public.is_admin()));
 
+DROP TRIGGER IF EXISTS account_erasure_jobs_set_updated_at ON public.account_erasure_jobs;
 CREATE TRIGGER account_erasure_jobs_set_updated_at
 BEFORE UPDATE ON public.account_erasure_jobs
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -2519,6 +2549,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS profiles_schedule_account_erasure ON public.profiles;
 CREATE TRIGGER profiles_schedule_account_erasure
 AFTER UPDATE OF account_status ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.schedule_account_erasure_from_profile();

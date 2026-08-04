@@ -9,8 +9,27 @@
 5. Sets up pg_trgm extension and indexes for intelligent multi-field search.
 */
 
--- Enable pg_trgm extension for fuzzy trigram searching
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Enable pg_trgm extension for fuzzy trigram searching.
+-- It must live in `public`: search_resources_v2 pins search_path to '' and
+-- calls public.similarity(), so the extension's schema cannot be left to
+-- whatever the session search_path happens to be.
+DO $$
+DECLARE
+  trgm_schema text;
+BEGIN
+  SELECT namespace.nspname
+  INTO trgm_schema
+  FROM pg_extension AS extension
+  JOIN pg_namespace AS namespace ON namespace.oid = extension.extnamespace
+  WHERE extension.extname = 'pg_trgm';
+
+  IF trgm_schema IS NULL THEN
+    CREATE EXTENSION pg_trgm WITH SCHEMA public;
+  ELSIF trgm_schema <> 'public' THEN
+    ALTER EXTENSION pg_trgm SET SCHEMA public;
+  END IF;
+END
+$$;
 
 -- 1. USER ROLE ENUM & PROFILE ENHANCEMENT
 DO $$ BEGIN
