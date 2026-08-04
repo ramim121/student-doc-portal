@@ -35,9 +35,16 @@ export async function POST(
     }
 
     // Idempotent: saving twice is a no-op rather than a duplicate-key error.
+    // ignoreDuplicates makes this ON CONFLICT DO NOTHING. A plain upsert emits
+    // DO UPDATE, which RLS rejects because the table has no UPDATE policy - a
+    // double tap then 409'd and the optimistic star flipped back to unsaved
+    // even though the row was there. Nothing in the row is mutable anyway.
     const { error } = await auth.supabase
       .from('resource_bookmarks')
-      .upsert({ user_id: auth.user.id, resource_id: id }, { onConflict: 'user_id,resource_id' });
+      .upsert(
+        { user_id: auth.user.id, resource_id: id },
+        { onConflict: 'user_id,resource_id', ignoreDuplicates: true },
+      );
 
     if (error) {
       console.error('bookmark.add.failed', { requestId, code: error.code });
