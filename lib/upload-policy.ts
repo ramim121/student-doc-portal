@@ -56,6 +56,22 @@ export const presignRequestSchema = z.object({
   checksumSha256: z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional(),
 });
 
+/**
+ * Only a title, an institution and the stored object are genuinely required.
+ * Everything else is optional: a shared past paper often has no course, and
+ * forcing a 10-character description just produced "Autogen" and "asdf".
+ *
+ * `tags` is accepted but ignored - /api/upload/finalize derives tags from the
+ * catalog rather than trusting the caller. See lib/auto-tags.ts.
+ */
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((value) => (value ? value : undefined));
+
 export const finalizeUploadSchema = z.object({
   storageKey: z.string().min(20).max(700),
   fileName: z.string().trim().min(1).max(255),
@@ -63,14 +79,14 @@ export const finalizeUploadSchema = z.object({
   sizeBytes: z.number().int().positive(),
   checksumSha256: z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional(),
   title: z.string().trim().min(3).max(240),
-  description: z.string().trim().min(10).max(5000),
+  description: optionalText(5000),
   universityId: z.string().uuid(),
-  courseId: z.string().uuid(),
+  courseId: z.string().uuid().nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
-  department: z.string().trim().min(2).max(160),
-  courseCode: z.string().trim().min(2).max(40),
-  semester: z.string().trim().min(2).max(80),
-  subject: z.string().trim().min(2).max(160),
+  department: optionalText(160),
+  courseCode: optionalText(40),
+  semester: optionalText(80),
+  subject: optionalText(160),
   tags: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
 });
 
