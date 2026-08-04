@@ -50,7 +50,7 @@ export function Footer() {
             </p>
             <div className="mt-5 flex gap-2">
               {[
-                { Icon: Github, label: 'StudyDock on GitHub', href: 'https://github.com/addin26/Student-doc-portal' },
+                { Icon: Github, label: 'StudyDock on GitHub', href: 'https://github.com/ramim121/student-doc-portal' },
               ].map(({ Icon, label, href }) => (
                 <Link
                   key={label}
