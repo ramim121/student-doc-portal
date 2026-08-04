@@ -90,7 +90,7 @@ export default function UniversitiesPage() {
                     <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br ${university.color} opacity-10 blur-2xl`} />
                     <div className="flex items-center gap-4">
                       <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${university.color} text-lg font-bold text-white shadow-lg`}>{university.short}</div>
-                      <div className="min-w-0"><h2 className="font-display text-base font-semibold leading-tight">{university.name}</h2><p className="mt-0.5 text-sm text-muted-foreground">{university.country}</p></div>
+                      <div className="min-w-0"><h2 className="font-display text-base font-semibold leading-tight">{university.name}</h2></div>
                     </div>
                     <div className="mt-5 flex items-center gap-6 text-sm">
                       <Metric value={formatCount(university.resources)} label="Resources" />

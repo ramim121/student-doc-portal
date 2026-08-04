@@ -52,7 +52,7 @@ export default function UniversityDetailPage() {
         <div className={`absolute -right-20 -top-20 h-60 w-60 rounded-full bg-gradient-to-br ${university.color} opacity-15 blur-3xl`} />
         <div className="relative z-10 flex flex-col items-start gap-6 md:flex-row md:items-center">
           <div className={`flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br ${university.color} text-2xl font-bold text-white shadow-lg`}>{university.short}</div>
-          <div className="flex-1"><h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">{university.name}</h1><p className="mt-1 text-muted-foreground">{university.country}</p>
+          <div className="flex-1"><h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">{university.name}</h1>
             <div className="mt-4 flex flex-wrap gap-4 text-sm"><HeroMetric icon={FileStack} value={formatCount(university.resources)} label="resources" /><HeroMetric icon={Users} value={formatCount(university.contributors)} label="contributors" /><HeroMetric icon={Building2} value={String(university.departments)} label="departments" /></div>
           </div>
         </div>

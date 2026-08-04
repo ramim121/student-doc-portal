@@ -74,10 +74,19 @@ export function ResourceCard({
           <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
 
           <div className="flex items-start justify-between gap-3">
-            <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', ft.bg)}>
-              <span className={cn('text-xs font-bold', ft.color)}>{ft.label}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', ft.bg)}>
+                <span className={cn('text-xs font-bold', ft.color)}>{ft.label}</span>
+              </div>
+              {/* Document type. The file-type tile says how it is stored;
+                  this says what it actually is - assignment, research, notes. */}
+              {resource.categoryName && (
+                <span className="truncate rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                  {resource.categoryName}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {resource.featured && (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:bg-amber-500/10">
                   Featured

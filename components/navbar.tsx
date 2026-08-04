@@ -9,11 +9,12 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 
+// Dashboard is intentionally absent: signed-in users already get a dedicated
+// Dashboard button in the actions group, and listing it here rendered it twice.
 const navLinks = [
   { href: '/explore', label: 'Explore' },
   { href: '/universities', label: 'Universities' },
   { href: '/leaderboard', label: 'Leaderboard' },
-  { href: '/dashboard', label: 'Dashboard' },
 ];
 
 export function Navbar() {

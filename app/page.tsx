@@ -323,7 +323,6 @@ export default function HomePage() {
                     </div>
                     <div>
                       <h3 className="font-display text-base font-semibold leading-tight">{uni.name}</h3>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{uni.country}</p>
                     </div>
                   </div>
                   <div className="mt-5 flex items-center gap-6 text-sm">
