@@ -13,9 +13,17 @@ export function apiError(
   code: string,
   message: string,
   requestId: string,
+  /**
+   * Names of the request fields that failed validation. Field names only —
+   * never the submitted values, which would echo user content into logs.
+   */
+  fields?: string[],
 ) {
   return NextResponse.json(
-    { error: { code, message }, requestId },
+    {
+      error: { code, message, ...(fields?.length ? { fields } : {}) },
+      requestId,
+    },
     {
       status,
       headers: {

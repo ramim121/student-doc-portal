@@ -624,9 +624,24 @@ export default function UploadPage() {
               <Field label="Semester" required>
                 <input
                   required
+                  minLength={2}
                   value={form.semester}
                   onChange={(e) => update('semester', e.target.value)}
                   placeholder="e.g. Fall 2024"
+                  className="form-input"
+                />
+              </Field>
+
+              {/* Required by finalizeUploadSchema and indexed for search. The
+                  form submitted form.subject while rendering no input for it,
+                  so every upload failed validation with an empty subject. */}
+              <Field label="Subject" required>
+                <input
+                  required
+                  minLength={2}
+                  value={form.subject}
+                  onChange={(e) => update('subject', e.target.value)}
+                  placeholder="e.g. Corporate Finance"
                   className="form-input"
                 />
               </Field>
@@ -643,11 +658,17 @@ export default function UploadPage() {
               <Field label="Description" required full>
                 <textarea
                   required
+                  minLength={10}
                   value={form.description}
                   onChange={(e) => update('description', e.target.value)}
                   placeholder="Describe what this resource contains..."
                   className="form-input h-28 resize-none"
                 />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {form.description.trim().length < 10
+                    ? `At least 10 characters (${form.description.trim().length}/10).`
+                    : `${form.description.trim().length} characters.`}
+                </p>
               </Field>
 
               <Field label="Tags" full>

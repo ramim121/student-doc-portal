@@ -49,7 +49,18 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.allowed) return apiError(429, 'RATE_LIMITED', `Too many finalization requests. Try again in ${rateLimit.retryAfterSeconds} seconds.`, requestId);
 
     const parsed = finalizeUploadSchema.safeParse(await request.json());
-    if (!parsed.success) return apiError(400, 'INVALID_FINALIZATION', 'Resource metadata is invalid.', requestId);
+    if (!parsed.success) {
+      // Naming the offending fields is the difference between a user fixing
+      // their form and giving up. Values are never echoed back.
+      const fields = [...new Set(parsed.error.issues.map((issue) => String(issue.path[0])))];
+      return apiError(
+        400,
+        'INVALID_FINALIZATION',
+        `Check these fields and try again: ${fields.join(', ')}.`,
+        requestId,
+        fields,
+      );
+    }
     const input = parsed.data;
     if (input.sizeBytes > getUploadMaxBytes()) return apiError(413, 'FILE_TOO_LARGE', 'The uploaded file exceeds the configured limit.', requestId);
     if (!isAllowedUploadPair(input.fileName, input.contentType)) return apiError(415, 'UNSUPPORTED_FILE_TYPE', 'The file extension and content type are not an allowed pair.', requestId);
