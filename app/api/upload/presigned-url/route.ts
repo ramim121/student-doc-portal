@@ -39,9 +39,10 @@ export async function POST(request: NextRequest) {
 
     const storageKey = `resources/${auth.user.id}/${randomUUID()}-${sanitizeFileName(parsed.data.fileName)}`;
     const expiresInSeconds = 900;
-    const uploadUrl = await getR2UploadPresignedUrl(storageKey, parsed.data.contentType, expiresInSeconds, parsed.data.checksumSha256);
+    const uploadUrl = await getR2UploadPresignedUrl(storageKey, parsed.data.contentType, expiresInSeconds);
+    // Content-Type is the only signed header. Sending x-amz-checksum-sha256
+    // here would invalidate the signature; see getR2UploadPresignedUrl.
     const requiredHeaders: Record<string, string> = { 'Content-Type': parsed.data.contentType };
-    if (parsed.data.checksumSha256) requiredHeaders['x-amz-checksum-sha256'] = parsed.data.checksumSha256;
 
     return apiSuccess({
       uploadUrl,

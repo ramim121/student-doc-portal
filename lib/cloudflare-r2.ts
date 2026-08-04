@@ -33,20 +33,27 @@ function getR2Config() {
 }
 
 /**
- * Generate a presigned upload URL for direct client-to-R2 upload
+ * Generate a presigned upload URL for direct client-to-R2 upload.
+ *
+ * Deliberately does not set ChecksumSHA256. The SDK encodes it as a signed
+ * *query parameter* (SignedHeaders stays `host`), so a client that also sends
+ * the matching `x-amz-checksum-sha256` header invalidates the signature and R2
+ * answers 403. R2 discards the value either way: uploading a body that does not
+ * match the declared checksum still returns 200, and a subsequent HEAD reports
+ * no ChecksumSHA256 at all. It bought no integrity and only broke uploads.
+ * Size and content type are verified server-side in /api/upload/finalize via
+ * headR2Object instead.
  */
 export async function getR2UploadPresignedUrl(
   key: string,
   contentType: string,
   expiresInSeconds = 900,
-  checksumSha256?: string,
 ): Promise<string> {
   const { client, bucketName } = getR2Config();
   const command = new PutObjectCommand({
     Bucket: bucketName,
     Key: key,
     ContentType: contentType,
-    ChecksumSHA256: checksumSha256,
   });
 
   return await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
