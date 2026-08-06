@@ -243,7 +243,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== CATEGORIES ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <SectionHeading
           eyebrow="Browse by type"
           title="Everything you need, organized"
@@ -275,7 +275,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== TRENDING ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <div className="flex items-end justify-between gap-4">
           <SectionHeading
             eyebrow="Trending now"
@@ -299,7 +299,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== UNIVERSITIES ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <SectionHeading
           eyebrow="Global community"
           title={`${formatCount(platformStats.universities)} universities, one platform`}
@@ -355,7 +355,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== LEADERBOARD ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <div className="grid gap-8 lg:grid-cols-2">
           <div>
             <SectionHeading
@@ -436,7 +436,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== FEATURES STRIP ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <div className="grid gap-5 md:grid-cols-3">
           {[
             { icon: FileStack, title: '13 resource types', desc: 'Reports, assignments, slides, lab reports, thesis & more — all supported.', color: 'from-primary to-secondary' },
@@ -462,7 +462,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="mx-auto mt-32 max-w-7xl px-4">
+      <section className="mx-auto mt-16 max-w-7xl px-4 sm:mt-32">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
