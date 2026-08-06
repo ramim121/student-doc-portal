@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Upload, Menu, X, Bell, LayoutDashboard, Sparkles, NotebookPen, LogIn, LogOut, UserRoundCog } from 'lucide-react';
+import { Search, Upload, Menu, X, LayoutDashboard, Sparkles, NotebookPen, LogIn, LogOut, UserRoundCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -113,16 +113,6 @@ export function Navbar() {
             >
               <Link href="/explore" aria-label="Search resources">
                 <Search className="h-4.5 w-4.5" />
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-xl"
-              asChild
-            >
-              <Link href="/dashboard" aria-label="Notifications">
-                <Bell className="h-4.5 w-4.5" />
               </Link>
             </Button>
             <Button

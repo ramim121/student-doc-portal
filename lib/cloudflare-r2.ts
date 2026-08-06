@@ -76,6 +76,18 @@ export async function deleteR2Object(key: string) {
 }
 
 /**
+ * Writes a small object directly. Documents are uploaded straight to R2 with a
+ * presigned URL, but a profile photo is already on the server by the time it is
+ * validated, so a second round trip through the browser would gain nothing.
+ */
+export async function putR2Object(key: string, body: Uint8Array, contentType: string) {
+  const { client, bucketName } = getR2Config();
+  await client.send(
+    new PutObjectCommand({ Bucket: bucketName, Key: key, Body: body, ContentType: contentType }),
+  );
+}
+
+/**
  * Returns a plain Uint8Array, never a Node Buffer.
  *
  * pdf.js clones the input through `new value.constructor(value)`. For a Buffer
