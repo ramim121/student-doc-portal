@@ -16,8 +16,6 @@ import {
   Calendar,
   FileText,
   Tag,
-  ThumbsUp,
-  Send,
   Loader2,
   Sparkles,
 } from 'lucide-react';
@@ -27,21 +25,6 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-
-type ResourceComment = {
-  id: string;
-  name: string;
-  avatar: string;
-  time: string;
-  text: string;
-  likes: number;
-  verified: boolean;
-};
-
-// Comments are not part of the current persisted domain model. Keeping this
-// collection empty prevents demonstration identities from appearing in a
-// production resource view.
-const resourceComments: ResourceComment[] = [];
 
 export default function ResourceDetailClient() {
   const params = useParams();
@@ -53,7 +36,6 @@ export default function ResourceDetailClient() {
   const [bookmarked, setBookmarked] = useState(false);
   const [savingBookmark, setSavingBookmark] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const [commentText, setCommentText] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
 
@@ -227,9 +209,13 @@ export default function ResourceDetailClient() {
         Back to explore
       </Link>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-3">
+      {/* On a phone this collapses to one column, and the action panel used to
+          land at the bottom - Download sat two thirds down the page behind
+          metadata nobody had asked for. Ordering puts actions first on mobile
+          and keeps the sidebar on the right from lg. */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3 lg:gap-8">
         {/* main content */}
-        <div className="lg:col-span-2">
+        <div className="order-2 lg:order-1 lg:col-span-2">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -251,117 +237,71 @@ export default function ResourceDetailClient() {
             </h1>
             <p className="mt-3 text-muted-foreground">{resource.description}</p>
 
-            {/* meta grid */}
-            <div className="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-border bg-card p-5 shadow-soft sm:grid-cols-3">
-              <MetaItem icon={FileText} label="Course Code" value={resource.courseCode} />
-              <MetaItem icon={Calendar} label="Semester" value={resource.semester} />
-              <MetaItem label="University" value={resource.universityShort} />
-              <MetaItem label="Department" value={resource.department} />
-              <MetaItem label="Subject" value={resource.subject} />
-              <MetaItem label="File size" value={resource.fileSize} />
-            </div>
-
-            {/* tags */}
-            <div className="mt-5">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Tag className="h-4 w-4 text-muted-foreground" />
-                Tags
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {resource.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    href={`/explore?q=${encodeURIComponent(tag)}`}
-                    className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            {/* AI Executive Summary section */}
-            <div className="mt-8 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-6 shadow-soft">
-              <div className="flex items-center gap-2 font-display text-lg font-bold text-primary">
-                <Sparkles className="h-5 w-5" />
-                AI-generated summary
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                {resource.aiSummary
-                  ? resource.aiSummary
-                  : resource.aiStatus === 'processing' || resource.aiStatus === 'queued'
-                    ? 'Summary generation is in progress.'
-                    : 'No AI summary is available for this resource.'}
-              </p>
-              {resource.aiSummary && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  AI-generated content can contain errors. Verify important details against the original document.
-                </p>
+            {/* Only fields that were actually filled in. An empty cell reading
+                "Not specified" is noise, and on a phone it costs a whole row. */}
+            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:grid-cols-3 sm:p-5">
+              {resource.courseCode && (
+                <MetaItem icon={FileText} label="Course" value={resource.courseCode} hint={resource.courseTitle} />
+              )}
+              {resource.categoryName && <MetaItem label="Type" value={resource.categoryName} />}
+              {resource.semester && <MetaItem icon={Calendar} label="Semester" value={resource.semester} />}
+              <MetaItem label="Institution" value={resource.universityShort || resource.university} />
+              {resource.department && <MetaItem label="Department" value={resource.department} />}
+              <MetaItem label="File" value={`${ft.label} · ${resource.fileSize}`} />
+              {resource.pages ? <MetaItem label="Pages" value={String(resource.pages)} /> : null}
+              {resource.uploadDate && (
+                <MetaItem label="Uploaded" value={new Date(resource.uploadDate).toLocaleDateString()} />
               )}
             </div>
 
-            {/* comments */}
-            <div className="mt-8">
-              <h2 className="font-display text-lg font-semibold">
-                Comments <span className="text-muted-foreground">({resourceComments.length})</span>
-              </h2>
-              <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-soft">
-                <div className="flex gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-xs font-bold text-white">
-                    YOU
-                  </div>
-                  <div className="flex-1">
-                    <textarea
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      placeholder="Comments are not enabled yet."
-                      disabled
-                      className="h-20 w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                    <div className="mt-2 flex justify-end">
-                      <Button size="sm" className="rounded-xl" disabled>
-                        <Send className="mr-1.5 h-3.5 w-3.5" />
-                        Unavailable
-                      </Button>
-                    </div>
-                  </div>
+            {resource.tags.length > 0 && (
+              <div className="mt-5">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  Tags
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {resource.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/explore?q=${encodeURIComponent(tag)}`}
+                      className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
                 </div>
               </div>
+            )}
 
-              <div className="mt-4 space-y-4">
-                {resourceComments.map((c, i) => (
-                  <motion.div
-                    key={c.id}
-                    initial={{ opacity: 0, y: 15 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: i * 0.1 }}
-                    className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-xs font-bold text-white">
-                      {c.avatar}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold">{c.name}</span>
-                        {c.verified && <BadgeCheck className="h-4 w-4 text-primary" />}
-                        <span className="text-xs text-muted-foreground">• {c.time}</span>
-                      </div>
-                      <p className="mt-1.5 text-sm text-muted-foreground">{c.text}</p>
-                      <button className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary">
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                        {c.likes}
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+            {/* Shown only when there is something to read. A card announcing
+                that no summary exists is a whole screen of nothing on mobile. */}
+            {(resource.aiSummary || resource.aiStatus === 'processing' || resource.aiStatus === 'queued') && (
+              <div className="mt-6 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-5 shadow-soft sm:p-6">
+                <div className="flex items-center gap-2 font-display text-base font-bold text-primary sm:text-lg">
+                  <Sparkles className="h-5 w-5" />
+                  AI-generated summary
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  {resource.aiSummary ?? 'Summary generation is in progress.'}
+                </p>
+                {resource.aiSummary && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    AI-generated content can contain errors. Verify important details against the original document.
+                  </p>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Comments are not in the persisted domain model, so the section
+                that used to sit here was a permanently disabled textarea and an
+                "Unavailable" button - a screen of dead space on a phone. It
+                comes back when comments actually exist. */}
           </motion.div>
         </div>
 
         {/* sidebar */}
-        <div className="lg:col-span-1">
+        <div className="order-1 lg:order-2 lg:col-span-1">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -465,14 +405,25 @@ export default function ResourceDetailClient() {
   );
 }
 
-function MetaItem({ icon: Icon, label, value }: { icon?: any; label: string; value: string }) {
+function MetaItem({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon?: any;
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {Icon && <Icon className="h-3.5 w-3.5" />}
+        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold">{value}</div>
+      {hint && <div className="truncate text-xs text-muted-foreground">{hint}</div>}
     </div>
   );
 }

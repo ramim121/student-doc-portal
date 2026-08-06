@@ -12,6 +12,7 @@ import {
   Info,
   Loader2,
   Plus,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect, type SearchableOption } from '@/components/searchable-select';
@@ -544,23 +545,28 @@ export default function UploadPage() {
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  'flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed p-10 text-center transition-all',
+                  'flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed text-center transition-all',
+                  // Once a file is chosen the target only has to show what was
+                  // picked, so it shrinks instead of holding a phone screen of
+                  // empty space.
+                  file ? 'p-4' : 'p-6 sm:p-10',
                   dragOver ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/40',
                 )}
               >
                 {file ? (
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <FileIcon className="h-6 w-6" />
+                  <div className="flex w-full items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <FileIcon className="h-5 w-5" />
                     </div>
-                    <div className="text-left">
-                      <div className="text-sm font-semibold">{file.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="truncate text-sm font-semibold">{file.name}</div>
+                      <div className="text-xs text-muted-foreground">{formatFileSize(file.size)} · tap to replace</div>
                     </div>
                     <button
                       type="button"
+                      aria-label="Remove file"
                       onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                      className="ml-2 rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                      className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-muted"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -570,13 +576,13 @@ export default function UploadPage() {
                     <motion.div
                       animate={{ y: [0, -8, 0] }}
                       transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                      className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary"
+                      className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary sm:h-16 sm:w-16"
                     >
-                      <UploadCloud className="h-8 w-8" />
+                      <UploadCloud className="h-6 w-6 sm:h-8 sm:w-8" />
                     </motion.div>
-                    <p className="mt-4 text-sm font-medium">Drag & drop your file here</p>
-                    <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
-                    <p className="mt-3 text-xs text-muted-foreground">Max 100 MB • {fileTypesAccepted.join(', ')}</p>
+                    <p className="mt-3 text-sm font-medium">Tap to choose a file</p>
+                    <p className="mt-1 text-xs text-muted-foreground">or drag and drop</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Max 100 MB · {fileTypesAccepted.join(', ')}</p>
                   </>
                 )}
                 <input
@@ -634,7 +640,7 @@ export default function UploadPage() {
 
               {/* Category, mandatory and immediately after the institution. */}
               <Field label="Category" required full>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {categoriesList.map((c) => (
                     <button
                       key={c.id}
@@ -642,7 +648,9 @@ export default function UploadPage() {
                       onClick={() => update('category', form.category === c.id ? '' : c.id)}
                       aria-pressed={form.category === c.id}
                       className={cn(
-                        'rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
+                        // Tighter than a standard control on purpose: eleven of
+                        // these at full size filled five rows of a phone screen.
+                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm',
                         form.category === c.id
                           ? 'border-primary bg-primary text-primary-foreground'
                           : 'border-border bg-card hover:border-primary/40 hover:text-primary',
@@ -653,7 +661,23 @@ export default function UploadPage() {
                   ))}
                 </div>
               </Field>
+            </div>
 
+            {/* Everything below is optional. Expanded by default it added four
+                more screens of scrolling to reach the upload button, so it is
+                folded away and opens if the uploader wants the detail. */}
+            <details className="group rounded-3xl border border-border bg-card shadow-soft">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6">
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold">Add more detail</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Course, department, semester and description - all optional
+                  </span>
+                </div>
+                <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+
+              <div className="grid gap-5 border-t border-border p-4 sm:p-6 md:grid-cols-2">
               <Field label="Course" full>
                 <SearchableSelect
                   options={coursesList.map((c) => ({
@@ -728,41 +752,35 @@ export default function UploadPage() {
                 )}
               </Field>
 
-              {/* Tags are derived server-side from the catalog; a free-text box
-                  produced fin435 / FIN 435 / Fin-435 for the same course. */}
-              <Field label="Tags" full>
-                {autoTagPreview.length ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {autoTagPreview.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Tags appear here once you pick an institution and a category.
-                  </p>
-                )}
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Generated automatically so the same course is always tagged the same way.
-                </p>
-              </Field>
-            </div>
-
-            {/* AI features hint */}
-            <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-semibold text-primary">Optional Gemini AI enrichment</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  The upload succeeds independently of AI. Supported PDFs are queued after storage verification when a Gemini model is configured.
-                </p>
               </div>
-            </div>
+            </details>
+
+            {/* Tags are derived server-side from the catalog; a free-text box
+                produced fin435 / FIN 435 / Fin-435 for the same course. Shown
+                only once there is something to show. */}
+            {autoTagPreview.length > 0 && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Tagged automatically as
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {autoTagPreview.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* One line: this is background information, not an instruction. */}
+            <p className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              PDFs are queued for an AI summary after upload. The upload succeeds either way.
+            </p>
 
             {error && (
               <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>
@@ -788,16 +806,14 @@ export default function UploadPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4">
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Info className="h-4 w-4" />
-                By uploading, you confirm you have the right to share this content.
-              </p>
+            {/* Stacked on a phone: side by side, the consent line was squeezed
+                into four wrapped lines beside the button. */}
+            <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-between">
               <Button
                 type="submit"
                 size="lg"
                 disabled={uploading}
-                className="h-12 rounded-2xl bg-gradient-to-r from-primary to-secondary px-8 shadow-glow disabled:opacity-50"
+                className="h-12 w-full rounded-2xl bg-gradient-to-r from-primary to-secondary shadow-glow disabled:opacity-50 sm:w-auto sm:px-8"
               >
                 {uploading ? (
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -806,6 +822,10 @@ export default function UploadPage() {
                 )}
                 {uploading ? 'Uploading...' : 'Upload Resource'}
               </Button>
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                By uploading, you confirm you have the right to share this content.
+              </p>
             </div>
           </motion.form>
         )}
