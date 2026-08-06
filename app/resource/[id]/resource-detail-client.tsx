@@ -209,11 +209,38 @@ export default function ResourceDetailClient() {
         Back to explore
       </Link>
 
+      {/* Above the grid so it reads title, then actions, then detail. Inside
+          the left column it rendered after the action panel on a phone, which
+          showed download counts before saying what the document was. */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mt-5"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn('rounded-lg px-2.5 py-1 text-xs font-bold', ft.bg, ft.color)}>
+            {ft.label}
+          </span>
+          {resource.featured && (
+            <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-600 dark:bg-amber-500/10">
+              Featured
+            </span>
+          )}
+        </div>
+        <h1 className="mt-3 font-display text-2xl font-bold tracking-tight text-balance md:text-3xl">
+          {resource.title}
+        </h1>
+        {resource.description && (
+          <p className="mt-2 text-muted-foreground">{resource.description}</p>
+        )}
+      </motion.div>
+
       {/* On a phone this collapses to one column, and the action panel used to
           land at the bottom - Download sat two thirds down the page behind
           metadata nobody had asked for. Ordering puts actions first on mobile
           and keeps the sidebar on the right from lg. */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-3 lg:gap-8">
+      <div className="mt-5 grid gap-6 lg:grid-cols-3 lg:gap-8">
         {/* main content */}
         <div className="order-2 lg:order-1 lg:col-span-2">
           <motion.div
@@ -221,22 +248,6 @@ export default function ResourceDetailClient() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn('rounded-lg px-2.5 py-1 text-xs font-bold', ft.bg, ft.color)}>
-                {ft.label}
-              </span>
-              {resource.featured && (
-                <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-600 dark:bg-amber-500/10">
-                  Featured
-                </span>
-              )}
-            </div>
-
-            <h1 className="mt-4 font-display text-2xl font-bold tracking-tight text-balance md:text-3xl">
-              {resource.title}
-            </h1>
-            <p className="mt-3 text-muted-foreground">{resource.description}</p>
-
             {/* Only fields that were actually filled in. An empty cell reading
                 "Not specified" is noise, and on a phone it costs a whole row. */}
             <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:grid-cols-3 sm:p-5">
