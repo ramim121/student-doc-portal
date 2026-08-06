@@ -66,9 +66,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     headers: {
       'Content-Type': contentTypeFor(university.logo_key),
       'Content-Length': String(bytes.byteLength),
-      // The URL stays the same when a logo is replaced, so revalidation is
-      // keyed on the upload time rather than on a changing path.
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
+      // The URL stays the same when a logo is replaced or removed, so the
+      // window is kept short deliberately. A day-long stale-while-revalidate
+      // would let an edge keep serving a logo that has already been deleted.
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
       ETag: `"${university.logo_updated_at ?? 'none'}"`,
       'X-Content-Type-Options': 'nosniff',
     },
