@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         departments: Number(row.departments_count ?? 0),
         resources: Number(row.resource_count ?? 0),
         contributors: Number(row.contributor_count ?? 0),
+        hasLogo: Boolean(row.has_logo),
       })),
       page: parsed.data.page,
       pageSize: parsed.data.pageSize,

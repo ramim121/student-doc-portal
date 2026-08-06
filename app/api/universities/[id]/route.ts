@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const supabase = await createServerSupabaseClient();
     const { data: university, error: universityError } = await supabase
       .from('universities')
-      .select('id, name, short, country, color, departments_count')
+      .select('id, name, short, country, color, departments_count, logo_key')
       .eq('id', parsedId.data)
       .maybeSingle();
     if (universityError) {
@@ -69,6 +69,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         short: university.short,
         country: university.country,
         color: university.color || 'from-primary to-secondary',
+        // Only the flag: the storage key stays server-side.
+        hasLogo: Boolean(university.logo_key),
         departments: university.departments_count,
         resources: resourceCount,
         contributors: contributorCountResult.count ?? 0,

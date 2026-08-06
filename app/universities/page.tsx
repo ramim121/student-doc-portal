@@ -7,6 +7,8 @@ import { Building2, ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-re
 import { formatCount } from '@/components/resource-card';
 import { Button } from '@/components/ui/button';
 import type { UniversitySummary } from '@/lib/catalog-types';
+import { InstitutionMark } from '@/components/institution-mark';
+import { monogramGradient } from '@/lib/monogram';
 
 export default function UniversitiesPage() {
   const [queryInput, setQueryInput] = useState('');
@@ -87,9 +89,16 @@ export default function UniversitiesPage() {
               <motion.div key={university.id} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: Math.min(index * 0.08, 0.4) }}>
                 <Link href={`/universities/${university.id}`}>
                   <div className="card-hover relative overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-soft">
-                    <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br ${university.color} opacity-10 blur-2xl`} />
+                    <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br ${monogramGradient(university.color)} opacity-10 blur-2xl`} />
                     <div className="flex items-center gap-4">
-                      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${university.color} text-lg font-bold text-white shadow-lg`}>{university.short}</div>
+                      <InstitutionMark
+                        id={university.id}
+                        short={university.short}
+                        color={university.color}
+                        hasLogo={university.hasLogo}
+                        className="h-14 w-14"
+                        textClassName="text-lg"
+                      />
                       <div className="min-w-0"><h2 className="font-display text-base font-semibold leading-tight">{university.name}</h2></div>
                     </div>
                     <div className="mt-5 flex items-center gap-6 text-sm">

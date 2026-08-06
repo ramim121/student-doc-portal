@@ -88,6 +88,11 @@ export type UniversitySummary = {
   contributors: number;
   departments: number;
   color: string;
+  /**
+   * Whether a logo exists at /api/universities/<id>/logo. Only the flag crosses
+   * the wire - the storage key stays server-side.
+   */
+  hasLogo?: boolean;
 };
 
 export type UniversityDetail = UniversitySummary & {
