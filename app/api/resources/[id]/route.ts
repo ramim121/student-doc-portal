@@ -46,6 +46,17 @@ export async function GET(
     }
 
     const resource = mapCatalogResource(data as unknown as Record<string, unknown>);
+
+    // This route is fetched once per visit to the resource page, so it is where
+    // a view is counted. Deliberately not awaited into the response: a counter
+    // that cannot be written is no reason to fail the page. The RPC ignores
+    // anything that is not approved.
+    void supabase
+      .rpc('increment_resource_view', { resource_id: resource.id })
+      .then(({ error: viewError }) => {
+        if (viewError) console.warn('catalog.view.count_failed', { requestId, code: viewError.code });
+      });
+
     let related: ReturnType<typeof mapCatalogResource>[] = [];
 
     if (resource.category) {
