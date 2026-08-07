@@ -66,7 +66,19 @@ function AuthForm() {
             emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
           },
         });
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          // A banned address is rejected by a database trigger, and GoTrue
+          // relays that as a bare 500 with an empty body - the raw message
+          // reaches the user as "{}". Anything unreadable here is reported as a
+          // refusal rather than as a broken form.
+          const raw = (signUpError.message || '').trim();
+          if (!raw || raw === '{}' || signUpError.status === 500) {
+            throw new Error(
+              'This email address cannot be used to register. Contact support if you believe that is a mistake.',
+            );
+          }
+          throw signUpError;
+        }
 
         if (!data.session) {
           setVerificationPending(true);

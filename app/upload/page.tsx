@@ -377,26 +377,48 @@ export default function UploadPage() {
       });
 
       if (!presignedRes.ok) {
-        const errJson = await presignedRes.json();
-        throw new Error(errJson.error?.message || 'Could not prepare upload session.');
+        const errJson = await presignedRes.json().catch(() => null);
+        throw new Error(errJson?.error?.message || 'Could not prepare upload session.');
       }
 
-      const { uploadUrl, storageKey, requiredHeaders } = await presignedRes.json();
+      const { uploadUrl, storageKey: presignedKey, requiredHeaders } = await presignedRes.json();
+      let storageKey: string = presignedKey;
 
       setUploadProgress(30);
       setUploadStage('Uploading file to private storage…');
 
-      // 2. Upload file directly to Cloudflare R2 via Presigned PUT URL
-      const r2UploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: requiredHeaders || {
-          'Content-Type': contentType,
-        },
-        body: file,
-      });
+      // 2. Straight to R2. This is a cross-origin PUT, so it only succeeds while
+      //    the bucket's CORS policy lists this exact origin - and a blocked
+      //    request never reaches a server, so it surfaces as a bare TypeError
+      //    with nothing in any log. Moving to the custom domain broke uploading
+      //    exactly this way. Falling back through our own origin makes the
+      //    upload independent of a bucket setting no deploy can check.
+      let directUploadFailed = false;
+      try {
+        const r2UploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: requiredHeaders || { 'Content-Type': contentType },
+          body: file,
+        });
+        if (!r2UploadRes.ok) directUploadFailed = true;
+      } catch {
+        directUploadFailed = true;
+      }
 
-      if (!r2UploadRes.ok) {
-        throw new Error('Direct file stream to Cloudflare R2 failed.');
+      if (directUploadFailed) {
+        setUploadStage('Sending the file through StudyDock…');
+        const proxyBody = new FormData();
+        proxyBody.append('file', file);
+        const proxyRes = await fetch('/api/upload/direct', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: proxyBody,
+        });
+        if (!proxyRes.ok) {
+          const proxyError = await proxyRes.json().catch(() => null);
+          throw new Error(proxyError?.error?.message || 'The file could not be uploaded.');
+        }
+        storageKey = (await proxyRes.json()).storageKey;
       }
 
       setUploadProgress(70);
